@@ -76,7 +76,7 @@ def apply_missing(char: str, mode: str, replacement: str, direction: str) -> str
     if mode == "box":
         return replacement
     if mode == "error":
-        raise ValueError(f"cannot {direction} character U+{ord(char):04X}")
+        raise ValueError(f"cannot {direction} character {char}")
     raise ValueError(f"unknown missing mode: {mode}")
 
 
@@ -202,7 +202,7 @@ def build_parser() -> argparse.ArgumentParser:
         sub.add_argument("--input-encoding", default="utf-8-sig")
         sub.add_argument("--output-encoding", default="utf-8")
         sub.add_argument("--format", choices=["raw", "entity", "decimal-entity", "uplus", "json"], default="raw")
-        sub.add_argument("--missing", choices=["box", "keep", "drop", "error"], default="box")
+        sub.add_argument("--missing", choices=["box", "keep", "drop", "error"], default="error")
         sub.add_argument("--replacement", default="口", help="Replacement character for encode/decode missing mode 'box'.")
 
     add_convert_args(subparsers.add_parser("encode", help="Convert normal Chinese text to game font encoding."))
@@ -245,5 +245,16 @@ def main(argv: Iterable[str] | None = None) -> int:
     return 0
 
 
+def cli() -> int:
+    try:
+        return main()
+    except KeyboardInterrupt:
+        print("error: cancelled", file=sys.stderr)
+        return 130
+    except (FileNotFoundError, PermissionError, OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli())

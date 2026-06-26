@@ -43,8 +43,8 @@ def load_codec(path: Path) -> dict[str, str]:
     for source, target in raw.items():
         if not isinstance(source, str) or not isinstance(target, str):
             raise ValueError("codec table must be a plain string dictionary")
-        if len(source) != 1 or len(target) != 1:
-            raise ValueError(f"codec entries must be one-to-one: {source!r} -> {target!r}")
+        if len(source) != 1 or not target:
+            raise ValueError(f"codec entries must map one source char to text: {source!r} -> {target!r}")
         codec[source] = target
     return codec
 
@@ -62,18 +62,6 @@ def requires_codec_mapping(char: str) -> bool:
         or 0xFF00 <= codepoint <= 0xFFEF
         or 0x20000 <= codepoint <= 0x3134F
     )
-
-
-def invert_codec(codec: dict[str, str], *, private_only: bool = False) -> dict[str, str]:
-    reverse: dict[str, str] = {}
-    for source, target in codec.items():
-        if private_only and not is_private_char(target):
-            continue
-        previous = reverse.get(target)
-        if previous is not None and previous != source:
-            raise ValueError(f"codec target is ambiguous: {target!r}")
-        reverse[target] = source
-    return reverse
 
 
 def normalize_game_input(text: str) -> str:
@@ -112,7 +100,7 @@ def apply_missing(char: str, mode: str, replacement: str, direction: str) -> str
 
 
 def encode_replacement(replacement: str, codec: dict[str, str]) -> str:
-    return "".join(codec.get(char, char) for char in replacement)
+    return "".join(codec.get(char, char) if not is_private_char(char) else char for char in replacement)
 
 
 def encode_text(text: str, codec: dict[str, str], missing: str, replacement: str) -> tuple[str, list[str]]:
@@ -120,7 +108,7 @@ def encode_text(text: str, codec: dict[str, str], missing: str, replacement: str
     out: list[str] = []
     missing_chars: list[str] = []
     for char in text:
-        target = codec.get(char)
+        target = codec.get(char) if not is_private_char(char) else None
         if target is not None:
             out.append(target)
             continue
@@ -134,12 +122,11 @@ def encode_text(text: str, codec: dict[str, str], missing: str, replacement: str
 
 
 def decode_text(text: str, codec: dict[str, str], missing: str, replacement: str) -> tuple[str, list[str]]:
-    reverse = invert_codec(codec, private_only=True)
     text = normalize_game_input(text)
     out: list[str] = []
     missing_chars: list[str] = []
     for char in text:
-        target = reverse.get(char)
+        target = codec.get(char) if is_private_char(char) else None
         if target is not None:
             out.append(target)
             continue
@@ -190,18 +177,17 @@ def write_output(args: argparse.Namespace, text: str) -> None:
 
 
 def lookup_text(text: str, codec: dict[str, str]) -> str:
-    reverse = invert_codec(codec, private_only=True)
     rows: list[dict[str, str]] = []
     for char in normalize_game_input(text):
         row = {"char": char, "uplus": f"U+{ord(char):04X}"}
-        if char in codec:
+        if char in codec and not is_private_char(char):
             game = codec[char]
             row["game"] = game
-            row["game_uplus"] = f"U+{ord(game):04X}"
-        if char in reverse:
-            plain = reverse[char]
+            row["game_uplus"] = f"U+{ord(game):04X}" if len(game) == 1 else ""
+        if char in codec and is_private_char(char):
+            plain = codec[char]
             row["plain"] = plain
-            row["plain_uplus"] = f"U+{ord(plain):04X}"
+            row["plain_uplus"] = " ".join(f"U+{ord(item):04X}" for item in plain)
         rows.append(row)
     return json.dumps(rows, ensure_ascii=False, indent=2)
 
@@ -210,8 +196,9 @@ def stats_text(codec: dict[str, str]) -> str:
     return json.dumps(
         {
             "entries": len(codec),
-            "private": sum(1 for target in codec.values() if is_private_char(target)),
-            "substitution": sum(1 for target in codec.values() if not is_private_char(target)),
+            "encode_private": sum(1 for source, target in codec.items() if not is_private_char(source) and len(target) == 1 and is_private_char(target)),
+            "decode_private": sum(1 for source in codec if is_private_char(source)),
+            "substitution": sum(1 for source, target in codec.items() if not is_private_char(source) and not (len(target) == 1 and is_private_char(target))),
         },
         ensure_ascii=False,
         indent=2,

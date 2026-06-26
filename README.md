@@ -5,14 +5,16 @@ Global font codec CLI for The Guild 2 Renaissance.
 ## Codec Table
 
 ```text
-..\data\guild2_codec.json
+data\guild2_codec.json
 ```
 
-The table is a plain JSON dictionary. Unlisted non-CJK characters pass through as Unicode.
+The table is one plain JSON dictionary. It contains encode entries and private-code decode entries.
 
 ```json
-{"你":"ꆜ","ą":"ç"}
+{"波":"꒯","꒯":"波","꛶":"波","ą":"ç"}
 ```
+
+Encode uses non-private keys only. Decode uses private keys only, so Polish substitutions do not rewrite normal Unicode such as French `ç`.
 
 ## Commands
 

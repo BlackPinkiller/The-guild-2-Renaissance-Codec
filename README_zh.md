@@ -5,14 +5,16 @@
 ## 转码表
 
 ```text
-..\data\guild2_codec.json
+data\guild2_codec.json
 ```
 
-转码表是纯 JSON 字典。非 CJK 字符没进表时按 Unicode 原样通过。
+转码表只有一个纯 JSON 字典，包含编码项和私有码位解码项。
 
 ```json
-{"你":"ꆜ","ą":"ç"}
+{"波":"꒯","꒯":"波","꛶":"波","ą":"ç"}
 ```
+
+编码只使用非 private key；解码只使用 private key，所以波兰替代不会把普通 Unicode，例如法语 `ç`，反向改坏。
 
 ## 命令
 
